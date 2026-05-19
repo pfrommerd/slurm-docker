@@ -1,13 +1,17 @@
 use crate::apptainer::Apptainer;
 use crate::runtime::{
-    CommandSpec, HostConfig, Layer, LayerReference, ResourceLimits, Resources, Scheduler,
+    CommandSpec, HostConfig, Layer, ResourceLimits, Resources, Scheduler,
 };
+use object_store::local::LocalFileSystem;
+use object_store::path::Path as ObjectPath;
+use object_store::ObjectStore;
 use crate::slurm::{RawSlurmInfo, SlurmCluster, SlurmScheduler};
 use crate::spec::Dockerfile;
 use crate::state::{now_unix_secs, HostRecord, StateStore};
 use crate::Result;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Debug, Parser)]
@@ -96,12 +100,11 @@ fn run_container(state: StateStore, args: RunArgs) -> Result<()> {
         resources: resources.clone(),
         time_limit: limits.time_limit,
     })?;
+    let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
     let layer = Layer::new(
         None,
-        LayerReference::Remote {
-            store_url: "image".to_string(),
-            path: args.image.clone(),
-        },
+        store,
+        ObjectPath::from(args.image.as_str()),
         args.image,
     );
     let container = host.launch_container(layer, limits)?;
